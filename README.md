@@ -153,13 +153,32 @@ Iterate locally with `POST /api/adapters/devin_local/reload` after rebuilds.
 
 ### npm
 
+Releases are published by GitHub Actions
+(`.github/workflows/publish.yml`) via npm **trusted publishing** (OIDC —
+no npm token is stored). Publishing a GitHub release whose tag matches
+`package.json` `version` (e.g. tag `v1.0.1` for version `1.0.1`) triggers
+the workflow; a tag/version mismatch fails the run.
+
+One-time setup on npmjs.com under the package's **Settings → Trusted
+Publisher**:
+
+| Field | Value |
+|---|---|
+| Provider | GitHub Actions |
+| Organization or user | `Qoyyuum` |
+| Repository | `devin-paperclip-adapter` |
+| Workflow filename | `publish.yml` |
+| Allowed actions | enable `npm publish` |
+
+Manual publishing still works as a fallback:
+
 ```bash
 npm login          # once
 npm publish        # prepublishOnly runs clean -> build -> test -> typecheck
 ```
 
 `prepublishOnly` guarantees the tarball always contains freshly compiled
-`dist/` output and generated `.d.ts` stubs.
+`dist/` output and generated `.d.ts` stubs — it runs in the workflow too.
 
 ### JSR (jsr.io)
 

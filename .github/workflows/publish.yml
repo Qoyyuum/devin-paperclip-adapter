@@ -1,0 +1,37 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write # required for npm OIDC trusted publishing
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false # never use caching in release builds
+
+      - name: Verify release tag matches package.json version
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          tag="${tag#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::Release tag '${{ github.event.release.tag_name }}' does not match package.json version '$pkg'"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm install -g npm@latest # npm >= 11.5.1 required for trusted publishing
+
+      # prepublishOnly runs clean -> build -> test -> typecheck
+      - run: npm publish
