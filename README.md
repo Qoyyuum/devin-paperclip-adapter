@@ -155,9 +155,22 @@ Iterate locally with `POST /api/adapters/devin_local/reload` after rebuilds.
 
 Releases are published by GitHub Actions
 (`.github/workflows/publish.yml`) via npm **trusted publishing** (OIDC —
-no npm token is stored). Publishing a GitHub release whose tag matches
-`package.json` `version` (e.g. tag `v1.0.1` for version `1.0.1`) triggers
-the workflow; a tag/version mismatch fails the run.
+no npm token is stored) with **staged publishing**. Publishing a GitHub
+release whose tag matches `package.json` `version` (e.g. tag `v1.0.1` for
+version `1.0.1`) triggers the workflow; a tag/version mismatch fails the
+run.
+
+The workflow runs `npm stage publish`, which uploads the tarball to npm's
+staging area without making it public. To ship it, a maintainer reviews
+and approves with 2FA — either on npmjs.com (**Staged Packages** tab) or
+from the CLI:
+
+```bash
+npm stage list                    # find the stage id
+npm stage view <stage-id>         # inspect metadata
+npm stage download <stage-id>     # inspect the tarball itself
+npm stage approve <stage-id>      # publish it (prompts for 2FA)
+```
 
 One-time setup on npmjs.com under the package's **Settings → Trusted
 Publisher**:
@@ -168,7 +181,7 @@ Publisher**:
 | Organization or user | `Qoyyuum` |
 | Repository | `devin-paperclip-adapter` |
 | Workflow filename | `publish.yml` |
-| Allowed actions | enable `npm publish` |
+| Allowed actions | leave the stage-only default (`npm stage publish`) |
 
 Manual publishing still works as a fallback:
 

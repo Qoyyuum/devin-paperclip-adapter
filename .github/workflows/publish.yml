@@ -31,7 +31,9 @@ jobs:
           fi
 
       - run: npm ci
-      - run: npm install -g npm@latest # npm >= 11.5.1 required for trusted publishing
+      - run: npm install -g npm@latest # npm >= 11.15.0 required for staged publishing
 
-      # prepublishOnly runs clean -> build -> test -> typecheck
-      - run: npm publish
+      # prepublishOnly runs clean -> build -> test -> typecheck.
+      # Stages the release; a maintainer approves it with 2FA on npmjs.com
+      # (Staged Packages tab) or via `npm stage approve <id>`.
+      - run: npm stage publish
