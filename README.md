@@ -195,13 +195,29 @@ npm publish        # prepublishOnly runs clean -> build -> test -> typecheck
 
 ### JSR (jsr.io)
 
-A `jsr.json` manifest ships with the repo. JSR publishes the TypeScript
-source directly, so consumers get types automatically.
+Published as **`@paperclip/devin-cli-adapter`** — JSR caps package names
+at 20 characters, so the JSR name is shorter than the npm name. JSR
+publishes the TypeScript source directly, so consumers get types
+automatically.
+
+The same release workflow (`.github/workflows/publish.yml`) publishes to
+JSR via OIDC in a `publish-jsr` job — no token needed, and it produces a
+provenance attestation. It verifies the release tag against `jsr.json`
+`version` (kept in sync with `package.json`).
+
+One-time setup on jsr.io:
+
+1. Create the `@paperclip` scope at jsr.io/new.
+2. Create the `devin-cli-adapter` package in that scope.
+3. In the package's **Settings**, link the GitHub repository
+   `Qoyyuum/devin-paperclip-adapter` — this is what authorizes the
+   workflow's OIDC publishes.
+
+Manual publishing still works as a fallback:
 
 ```bash
-# Edit "name" in jsr.json to a scope you own (JSR requires @scope/name),
-# keep "version" in sync with package.json, then:
-npx jsr publish
+npx jsr publish          # publishes jsr.json version if not already on JSR
+npx jsr publish --dry-run # verify the package meets all JSR rules first
 ```
 
 npm dependencies are declared in the `imports` map of `jsr.json`.

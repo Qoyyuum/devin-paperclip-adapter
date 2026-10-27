@@ -1,15 +1,15 @@
-name: Publish to npm
+name: Publish
 
 on:
   release:
     types: [published]
 
 permissions:
-  id-token: write # required for npm OIDC trusted publishing
+  id-token: write # required for npm + JSR OIDC trusted publishing
   contents: read
 
 jobs:
-  publish:
+  publish-npm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -37,3 +37,25 @@ jobs:
       # Stages the release; a maintainer approves it with 2FA on npmjs.com
       # (Staged Packages tab) or via `npm stage approve <id>`.
       - run: npm stage publish
+
+  publish-jsr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Verify release tag matches jsr.json version
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          tag="${tag#v}"
+          pkg="$(node -p "require('./jsr.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::Release tag '${{ github.event.release.tag_name }}' does not match jsr.json version '$pkg'"
+            exit 1
+          fi
+
+      - run: npm ci # resolve npm: specifiers for type checking
+      - run: npx jsr publish # OIDC-authenticates via id-token; skips if version exists

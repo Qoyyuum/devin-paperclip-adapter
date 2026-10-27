@@ -1,5 +1,5 @@
 {
-  "name": "@paperclip/devin-paperclip-adapter",
+  "name": "@paperclip/devin-cli-adapter",
   "version": "1.0.0",
   "exports": {
     ".": "./src/index.ts",
