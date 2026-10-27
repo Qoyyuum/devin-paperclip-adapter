@@ -1,6 +1,6 @@
 {
   "name": "@paperclip/devin-cli-adapter",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server/index.ts",
