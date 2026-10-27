@@ -1,6 +1,6 @@
 {
   "name": "devin-paperclip-adapter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Paperclip agent adapter that runs the Devin CLI as a local process.",
   "license": "MIT",
   "repository": {
