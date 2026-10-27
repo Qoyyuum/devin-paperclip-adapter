@@ -1,3 +1,19 @@
+/**
+ * Server-side runtime for the `devin_local` Paperclip adapter.
+ *
+ * Implements the adapter contract: `execute` runs one Devin turn per
+ * heartbeat (CLI engine via `devin -p`, or ACP engine via `devin acp`),
+ * `testEnvironment` runs pre-flight checks (CLI presence, auth, cwd),
+ * `sessionCodec` persists and resumes Devin session ids, and
+ * `listDevinModels` enumerates models from `devin models list`.
+ * `getConfigSchema` drives the agent-config form in the Paperclip UI and
+ * `createServerAdapter` assembles the full `ServerAdapterModule`.
+ *
+ * Requires Node.js on a host where `devin auth login` has been completed
+ * for the Paperclip server's OS user.
+ *
+ * @module
+ */
 import type { AdapterConfigSchema, ServerAdapterModule } from "@paperclipai/adapter-utils";
 import { agentConfigurationDoc, models, type } from "../index.js";
 import { execute } from "./execute.js";

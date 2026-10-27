@@ -6,6 +6,8 @@
  * event; this module maps those events onto transcript entries.
  *
  * Contract: paperclip.adapterUiParser 1.0.0
+ *
+ * @module
  */
 
 export type TranscriptEntry =

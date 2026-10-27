@@ -1,3 +1,26 @@
+/**
+ * Paperclip external adapter that runs the Devin CLI as a local process,
+ * so a Paperclip company can hire Devin as an agent.
+ *
+ * This entrypoint publishes adapter metadata (`type`, `label`, `models`,
+ * `agentConfigurationDoc`) and re-exports `createServerAdapter`. Each
+ * Paperclip heartbeat runs one Devin turn via `devin -p`; the Devin
+ * conversation is resumed across heartbeats with `devin -r <sessionId>`.
+ *
+ * The server-side runtime lives in
+ * `@paperclip/devin-cli-adapter/server`; transcript rendering lives in
+ * `@paperclip/devin-cli-adapter/ui-parser`.
+ *
+ * @example
+ * ```ts
+ * import { createServerAdapter, type } from "@paperclip/devin-cli-adapter";
+ *
+ * const adapter = createServerAdapter();
+ * adapter.type === "devin_local";
+ * ```
+ *
+ * @module
+ */
 export const type = "devin_local";
 export const label = "Devin (local CLI)";
 
