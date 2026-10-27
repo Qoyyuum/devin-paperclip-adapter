@@ -1,0 +1,26 @@
+{
+  "name": "@paperclip/devin-paperclip-adapter",
+  "version": "1.0.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server/index.ts",
+    "./ui-parser": "./src/ui-parser.ts"
+  },
+  "imports": {
+    "@agentclientprotocol/sdk": "npm:@agentclientprotocol/sdk@1.4.0",
+    "@paperclipai/adapter-utils": "npm:@paperclipai/adapter-utils@^2026.1023.0",
+    "@paperclipai/adapter-utils/": "npm:@paperclipai/adapter-utils@^2026.1023.0/"
+  },
+  "publish": {
+    "include": [
+      "src",
+      "README.md",
+      "LICENSE",
+      "jsr.json",
+      "package.json"
+    ],
+    "exclude": [
+      "src/__tests__"
+    ]
+  }
+}
