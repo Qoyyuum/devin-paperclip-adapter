@@ -10,6 +10,10 @@
  * @module
  */
 
+/**
+ * One entry in a `devin_local` run transcript: assistant/thinking deltas,
+ * user lines, tool calls, init/status/system notes, or raw stdout.
+ */
 export type TranscriptEntry =
   | { kind: "assistant"; ts: string; text: string; delta?: boolean }
   | { kind: "thinking"; ts: string; text: string; delta?: boolean }
@@ -42,6 +46,11 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Parse one raw stdout line into transcript entries. Lines carrying a
+ * `devin.*` JSON event map to typed entries; other lines pass through as
+ * `stdout`; blank lines produce no entries.
+ */
 export function parseStdoutLine(line: string, ts: string): TranscriptEntry[] {
   const trimmed = line.trim();
   if (!trimmed) return [];
@@ -149,11 +158,16 @@ export function parseStdoutLine(line: string, ts: string): TranscriptEntry[] {
   }
 }
 
+/**
+ * Incremental transcript parser: feed stdout lines via `parseLine`;
+ * `reset` clears state between runs.
+ */
 export interface StdoutParser {
   parseLine(line: string, ts: string): TranscriptEntry[];
   reset(): void;
 }
 
+/** Create a {@link StdoutParser} for one run transcript. */
 export function createStdoutParser(): StdoutParser {
   function parseLine(line: string, ts: string): TranscriptEntry[] {
     try {

@@ -24,6 +24,11 @@ function normalize(raw: unknown): Record<string, unknown> | null {
   };
 }
 
+/**
+ * Codec persisting the Devin session id (and cwd) in Paperclip
+ * `sessionParams` between heartbeats, so the next turn resumes the same
+ * Devin conversation.
+ */
 export const sessionCodec: AdapterSessionCodec = {
   deserialize: normalize,
   serialize: normalize,

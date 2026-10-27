@@ -234,6 +234,15 @@ interface AttemptResult {
   resumed: boolean;
 }
 
+/**
+ * Run one Devin turn for a Paperclip heartbeat.
+ *
+ * Spawns the Devin CLI (`devin -p`, or `devin acp` for the acp engine) in
+ * the configured working directory, streams `devin.*` JSON events to the
+ * run log, and resumes the stored Devin session when the cwd matches.
+ * If the stored session is gone, retries once with a fresh session and
+ * reports `clearSession`.
+ */
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
   const { runId, agent, runtime, config, context, onLog, onMeta, onSpawn, authToken } = ctx;
 

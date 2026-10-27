@@ -27,6 +27,11 @@ export { testEnvironment } from "./test.js";
 export { sessionCodec } from "./session.js";
 export { listDevinModels } from "./models.js";
 
+/**
+ * Config schema driving the agent-config form for `devin_local` agents —
+ * command, cwd, model, engine (cli/acp), permissionMode, sandboxing,
+ * timeouts, and related fields.
+ */
 export function getConfigSchema(): AdapterConfigSchema {
   return {
     fields: [
@@ -118,6 +123,11 @@ export function getConfigSchema(): AdapterConfigSchema {
   };
 }
 
+/**
+ * Assemble the full server adapter module for `devin_local`: execution,
+ * environment checks, session persistence, skills sync, model listing,
+ * and the config schema above.
+ */
 export function createServerAdapter(): ServerAdapterModule {
   return {
     type,

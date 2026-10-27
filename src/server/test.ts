@@ -45,6 +45,12 @@ async function probe(
   }
 }
 
+/**
+ * Run the adapter's pre-flight environment checks: local-only execution
+ * target, absolute cwd, `devin` CLI resolvable in PATH, completed
+ * `devin auth login`, ACP handshake (acp engine only), and skills-home
+ * reachability. Any `error`-level check blocks hiring on this adapter.
+ */
 export async function testEnvironment(
   ctx: AdapterEnvironmentTestContext,
 ): Promise<AdapterEnvironmentTestResult> {

@@ -21,9 +21,16 @@
  *
  * @module
  */
+/** Paperclip adapter type id registered by this package. */
 export const type = "devin_local";
+
+/** Human-readable adapter name shown in the Paperclip UI. */
 export const label = "Devin (local CLI)";
 
+/**
+ * Model catalog offered in the agent-config form. Ships the free SWE-2
+ * defaults; any model id from `devin models list` is also accepted.
+ */
 export const models = [
   { id: "swe-2-high", label: "SWE-2 High (free)" },
   { id: "swe-2-medium", label: "SWE-2 Medium (free)" },
@@ -31,6 +38,10 @@ export const models = [
   { id: "adaptive", label: "Adaptive" },
 ];
 
+/**
+ * Markdown documentation rendered in the agent-config form: what
+ * `devin_local` does, when to use it, and how its config fields behave.
+ */
 export const agentConfigurationDoc: string = `# devin_local agent configuration
 
 Adapter: devin_local
