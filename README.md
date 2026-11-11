@@ -40,11 +40,21 @@ heartbeat -> devin -p --prompt-file <tmp> --model <m> --permission-mode <m> [--s
 
 ### 1. Install the adapter
 
+**From an existing Paperclip instance**:
+
+1. Login to your paperclip instance.
+2. Click on your user bottom left corner and click "Settings", then "Adapters".
+3. Click "Install Adapter".
+4. Ensure that the "npm package" option is selected.
+5. Enter the package name "devin-cli-adapter".
+6. Optionally enter "latest" or whichever version you want or leave it empty.
+7. Click "Install".
+
 **From npm** (recommended):
 
 ```http
 POST /api/adapters/install
-{ "packageName": "devin-cli-adapter", "version": "1.0.1" }
+{ "packageName": "devin-cli-adapter", "version": "1.0.3" }
 ```
 
 Or pick `devin-cli-adapter` from the Adapter Manager UI if your
@@ -63,6 +73,7 @@ POST /api/adapters/install
 ```
 
 Paperclip imports `dist/index.js`, so build first for local installs.
+
 
 ### 2. Register the adapter type
 
