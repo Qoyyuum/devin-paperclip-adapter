@@ -146,6 +146,32 @@ rather than run unsandboxed when the host can't provide it.
   shell.
 - **Billing** is reported as `subscription` (account-backed; free-tier models
   report no per-run cost).
+- **Failure recovery.** Each heartbeat is one resumable Devin turn, so failed
+  and timed-out turns report `conversationContinuation: "continue_conversation_v1"`
+  in `resultJson`. Paperclip then treats them like its built-in CLI adapters:
+  bounded retries and "send a new message" continue the conversation instead
+  of parking the issue behind an execution-reconciliation hold.
+- **Lost runs (`process_lost`).** If the Paperclip server dies mid-run, the
+  adapter never returns, so it cannot report that policy. Paperclip
+  (<= 2026.1106.0) only infers it for built-in adapter types and blocks the
+  issue until a board operator reconciles it:
+
+  ```http
+  POST /api/issues/{issueId}/recovery-actions/resolve
+  {
+    "actionId": "<issueRecoveryActions.id>",
+    "outcome": "restored",
+    "sourceIssueStatus": "todo",
+    "executionReconciliation": {
+      "runId": "<failedRunId>",
+      "providerStopped": true,
+      "actionOutcome": "not_performed | completed | mixed",
+      "outcomeEvidence": "<what was observed>"
+    }
+  }
+  ```
+
+  The assignee is then woken and Devin resumes via `-r <sessionId>`.
 
 ## Package layout
 
