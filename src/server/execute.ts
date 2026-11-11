@@ -39,8 +39,8 @@ import { executeAcp } from "./acp.js";
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_MODEL = "swe-2-high";
-const DEFAULT_PERMISSION_MODE = "smart";
-const PERMISSION_MODES = new Set(["auto", "accept-edits", "smart", "dangerous"]);
+const DEFAULT_PERMISSION_MODE = "dangerous";
+const PERMISSION_MODES = new Set(["auto", "accept-edits", "smart", "dangerous", "autonomous"]);
 
 // ---------------------------------------------------------------------------
 // devin.* stdout events — the only stdout this adapter emits is JSON lines so
@@ -178,9 +178,26 @@ function firstNonEmptyLine(text: string): string {
   );
 }
 
-function normalizePermissionMode(raw: string): string {
-  const value = raw.trim().toLowerCase();
-  return PERMISSION_MODES.has(value) ? value : DEFAULT_PERMISSION_MODE;
+/**
+ * Resolve the effective --permission-mode and --sandbox flags for a run.
+ * Heartbeats are always non-interactive, so the default must approve tool
+ * calls without asking: "dangerous" normally, "autonomous" when sandboxed —
+ * the Devin CLI forces autonomous under --sandbox and ignores any other
+ * mode, so an explicit permissionMode loses to the sandbox flag here too.
+ * Exported for tests and the environment checks.
+ */
+export function resolvePermissionMode(config: Record<string, unknown>): {
+  permissionMode: string;
+  sandbox: boolean;
+} {
+  const sandboxConfigured = asBoolean(config.sandbox, false);
+  const configured = asString(config.permissionMode, "").trim().toLowerCase();
+  const permissionMode = sandboxConfigured
+    ? "autonomous"
+    : PERMISSION_MODES.has(configured)
+      ? configured
+      : DEFAULT_PERMISSION_MODE;
+  return { permissionMode, sandbox: sandboxConfigured || permissionMode === "autonomous" };
 }
 
 function renderPaperclipEnvNote(env: Record<string, string>): string {
@@ -263,13 +280,23 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const command = asString(config.command, "devin").trim() || "devin";
   const engine = asString(config.engine, "cli").trim().toLowerCase() || "cli";
   const model = asString(config.model, DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-  const permissionMode = normalizePermissionMode(asString(config.permissionMode, DEFAULT_PERMISSION_MODE));
+  const configuredPermissionMode = asString(config.permissionMode, "").trim().toLowerCase();
+  const { permissionMode, sandbox } = resolvePermissionMode(config);
   const acpMode = asString(config.acpMode, "").trim();
-  const sandbox = asBoolean(config.sandbox, false);
   const timeoutSec = asNumber(config.timeoutSec, 0);
   const graceSec = asNumber(config.graceSec, 20);
   const envConfig = parseObject(config.env);
   const extraArgs = asStringArray(config.extraArgs);
+
+  if (configuredPermissionMode && configuredPermissionMode !== permissionMode) {
+    await emitStatus(
+      onLog,
+      "config-override",
+      PERMISSION_MODES.has(configuredPermissionMode)
+        ? `The --sandbox flag forces Devin's "autonomous" permission mode; ignoring configured permissionMode "${configuredPermissionMode}".`
+        : `Unknown permissionMode "${configuredPermissionMode}"; using "${permissionMode}".`,
+    );
+  }
 
   const workspaceContext = parseObject(context.paperclipWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");

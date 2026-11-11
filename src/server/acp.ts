@@ -73,13 +73,23 @@ function line(event: DevinAcpEvent): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * Modes that approve every tool call. "dangerous" auto-approves everything;
+ * "autonomous" carries the same approval posture under an OS sandbox.
+ */
+function approvesAllToolCalls(permissionMode: string): boolean {
+  return permissionMode === "dangerous" || permissionMode === "autonomous";
+}
+
+/**
  * Maps the adapter's permissionMode onto a Devin ACP session mode id. Devin's
  * ACP modes are ask, plan, smart, accept-edits, and bypass; the adapter's
- * "dangerous" means approve everything, which is "bypass" on the wire.
+ * "dangerous" and "autonomous" mean approve everything, which is "bypass" on
+ * the wire.
  */
 export function devinAcpModeForPermissionMode(permissionMode: string): string {
   switch (permissionMode) {
     case "dangerous":
+    case "autonomous":
       return "bypass";
     case "accept-edits":
       return "accept-edits";
@@ -100,7 +110,7 @@ export function selectPermissionOption(
   options: ReadonlyArray<Pick<PermissionOption, "optionId" | "kind">>,
   permissionMode: string,
 ): string | null {
-  const want = permissionMode === "dangerous" ? ["allow_once", "allow_always"] : ["reject_once", "reject_always"];
+  const want = approvesAllToolCalls(permissionMode) ? ["allow_once", "allow_always"] : ["reject_once", "reject_always"];
   for (const kind of want) {
     const match = options.find((option) => option.kind === kind);
     if (match) return match.optionId;
@@ -291,7 +301,7 @@ export async function executeAcp(options: AcpExecuteOptions): Promise<AdapterExe
         await emit({
           type: "devin.permission",
           title,
-          decision: optionId ? (permissionMode === "dangerous" ? "approved" : "rejected") : "cancelled",
+          decision: optionId ? (approvesAllToolCalls(permissionMode) ? "approved" : "rejected") : "cancelled",
         });
         return optionId
           ? { outcome: { outcome: "selected", optionId } }

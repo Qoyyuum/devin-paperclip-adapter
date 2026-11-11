@@ -8,6 +8,7 @@ import {
 describe("devinAcpModeForPermissionMode", () => {
   it("maps adapter modes onto devin ACP modes", () => {
     expect(devinAcpModeForPermissionMode("dangerous")).toBe("bypass");
+    expect(devinAcpModeForPermissionMode("autonomous")).toBe("bypass");
     expect(devinAcpModeForPermissionMode("accept-edits")).toBe("accept-edits");
     expect(devinAcpModeForPermissionMode("smart")).toBe("smart");
     expect(devinAcpModeForPermissionMode("auto")).toBe("smart");
@@ -24,6 +25,10 @@ describe("selectPermissionOption", () => {
 
   it("approves under dangerous", () => {
     expect(selectPermissionOption(options, "dangerous")).toBe("allow-1");
+  });
+
+  it("approves under autonomous", () => {
+    expect(selectPermissionOption(options, "autonomous")).toBe("allow-1");
   });
 
   it("rejects under every other mode", () => {

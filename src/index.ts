@@ -70,17 +70,21 @@ Core fields:
 - acpMode (string, optional): Devin ACP session mode id for the acp
   engine (ask, plan, smart, accept-edits, bypass). Defaults to a mapping
   from permissionMode (auto/smart → smart, accept-edits → accept-edits,
-  dangerous → bypass).
+  dangerous/autonomous → bypass).
 - cwd (string, optional): absolute working directory for the Devin session.
   Defaults to the Paperclip workspace for the run.
 - command (string, optional): Devin CLI binary name or path (default "devin").
 - model (string, optional): Devin model id (default "swe-2-high"). Any id from
   "devin models list" works, e.g. "claude-sonnet-4", "swe-2-medium-lightning".
-- permissionMode (string, optional): auto | accept-edits | smart | dangerous
-  (default "smart"). Use "dangerous" only for trusted, sandboxed hosts —
-  it auto-approves every tool call including arbitrary shell commands.
+- permissionMode (string, optional): auto | accept-edits | smart | dangerous |
+  autonomous (default "dangerous"). Runs are non-interactive, so modes that
+  require confirmation (auto, accept-edits, smart) leave the agent unable to
+  act. "dangerous" auto-approves every tool call including arbitrary shell
+  commands — use it only on trusted hosts. "autonomous" does the same with
+  exec sandboxed and requires --sandbox.
 - sandbox (boolean, optional): pass --sandbox to sandbox exec-tool processes
-  (macOS seatbelt / Linux bwrap; default false).
+  (macOS seatbelt / Linux bwrap; default false). Forces the "autonomous"
+  permission mode.
 - instructionsFilePath (string, optional): agent instructions file prepended
   to the run prompt.
 - promptTemplate (string, optional): heartbeat prompt template.

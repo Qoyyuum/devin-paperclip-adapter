@@ -10,6 +10,7 @@ import type {
 import { asString, parseObject } from "@paperclipai/adapter-utils/server-utils";
 import { resolveDevinSkillsHome, DEVIN_SKILLS_HOME_LABEL } from "./skills.js";
 import { probeDevinAcp } from "./acp.js";
+import { resolvePermissionMode } from "./execute.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -155,6 +156,32 @@ export async function testEnvironment(
       level: "info",
       message: `Model configured: ${model}`,
       hint: "The run will fail if this model id is not available to the Devin account; see `devin models list`.",
+    });
+  }
+
+  // Headless runs can never answer a confirmation prompt: `devin -p`
+  // auto-rejects every tool call needing one, and the ACP path rejects the
+  // requests that reach it. Modes below "dangerous" therefore leave the
+  // agent able to talk but unable to act.
+  const { permissionMode } = resolvePermissionMode(config);
+  const configuredPermissionMode = asString(config.permissionMode, "").trim().toLowerCase();
+  if (permissionMode === "dangerous" || permissionMode === "autonomous") {
+    checks.push({
+      code: "devin_permission_mode_ok",
+      level: "info",
+      message: `Permission mode "${permissionMode}" auto-approves tool calls, so headless runs can act.`,
+      ...(configuredPermissionMode && configuredPermissionMode !== permissionMode
+        ? {
+            detail: `Configured permissionMode "${configuredPermissionMode}" is overridden: Devin's --sandbox forces "autonomous".`,
+          }
+        : {}),
+    });
+  } else {
+    checks.push({
+      code: "devin_permission_mode_headless",
+      level: "warn",
+      message: `Permission mode "${permissionMode}" can require interactive confirmation, which non-interactive runs auto-reject — the agent may be unable to act.`,
+      hint: 'Set permissionMode to "dangerous" (or enable sandbox for "autonomous") so the agent can act without a human at the terminal.',
     });
   }
 
