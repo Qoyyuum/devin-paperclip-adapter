@@ -93,13 +93,13 @@ describe("testEnvironment", () => {
     expect(check?.detail).toContain('"smart"');
   });
 
-  it("warns when the acp engine is asked to sandbox", async () => {
+  it("reports env-based sandbox for the acp engine", async () => {
     const result = await testEnvironment(
       baseCtx({ engine: "acp", sandbox: true, command: nonexistentPath("devin") }),
     );
 
-    const check = result.checks.find((c) => c.code === "devin_sandbox_acp_unsupported");
-    expect(check?.level).toBe("warn");
+    const check = result.checks.find((c) => c.code === "devin_sandbox_acp_env");
+    expect(check?.level).toBe("info");
   });
 
   it("still fails when the devin command is not resolvable", async () => {

@@ -7,7 +7,7 @@ import type {
   AdapterEnvironmentTestContext,
   AdapterEnvironmentTestResult,
 } from "@paperclipai/adapter-utils";
-import { asBoolean, asString, parseObject } from "@paperclipai/adapter-utils/server-utils";
+import { asString, parseObject } from "@paperclipai/adapter-utils/server-utils";
 import { resolveDevinSkillsHome, DEVIN_SKILLS_HOME_LABEL } from "./skills.js";
 import { probeDevinAcp } from "./acp.js";
 import { resolvePermissionMode } from "./execute.js";
@@ -163,7 +163,7 @@ export async function testEnvironment(
   // auto-rejects every tool call needing one, and the ACP path rejects the
   // requests that reach it. Modes below "dangerous" therefore leave the
   // agent able to talk but unable to act.
-  const { permissionMode } = resolvePermissionMode(config, engine);
+  const { permissionMode, sandbox } = resolvePermissionMode(config);
   const configuredPermissionMode = asString(config.permissionMode, "").trim().toLowerCase();
   if (permissionMode === "dangerous" || permissionMode === "autonomous") {
     checks.push({
@@ -190,22 +190,27 @@ export async function testEnvironment(
     });
   }
 
-  // The acp engine has no --sandbox flag; asking for one silently gets
-  // approve-everything without the OS isolation the flag implies.
-  if (engine === "acp" && (asBoolean(config.sandbox, false) || configuredPermissionMode === "autonomous")) {
+  // `devin acp` has no --sandbox flag, but honors the flag's DEVIN_SANDBOX
+  // env binding; execute sets it so acp runs get the same OS isolation.
+  if (engine === "acp" && sandbox) {
     checks.push({
-      code: "devin_sandbox_acp_unsupported",
-      level: "warn",
-      message: "The acp engine cannot sandbox exec calls; runs proceed unsandboxed.",
-      hint: "Use the cli engine for --sandbox isolation.",
+      code: "devin_sandbox_acp_env",
+      level: "info",
+      message: "Sandbox for the acp engine is applied via DEVIN_SANDBOX in the Devin process env.",
+      detail: "Devin refuses to start when OS sandboxing is unavailable on the host (fail-closed).",
     });
   }
 
   if (engine === "acp") {
     // The ACP hello probe performs a real initialize handshake against
     // `devin acp`. Passing it emits the hello_probe check Paperclip's
-    // lifecycle gate requires to mark the adapter verified.
-    const hello = await probeDevinAcp(command, probeCwd, process.env as Record<string, string>);
+    // lifecycle gate requires to mark the adapter verified. The probe gets
+    // the same DEVIN_SANDBOX env the run will use, so a host that cannot
+    // sandbox fails here rather than at run time.
+    const hello = await probeDevinAcp(command, probeCwd, {
+      ...(process.env as Record<string, string>),
+      ...(sandbox ? { DEVIN_SANDBOX: "true" } : {}),
+    });
     if (hello.ok && !hello.authRequired) {
       checks.push({
         code: "devin_hello_probe_passed",

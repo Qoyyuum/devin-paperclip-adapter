@@ -41,14 +41,10 @@ describe("resolvePermissionMode", () => {
     });
   });
 
-  it("ignores sandbox for the acp engine, which cannot sandbox exec", () => {
-    expect(resolvePermissionMode({ sandbox: true }, "acp")).toEqual({
-      permissionMode: "dangerous",
-      sandbox: false,
-    });
-    expect(resolvePermissionMode({ permissionMode: "autonomous" }, "acp")).toEqual({
+  it("resolves the same for every engine; acp gets the sandbox via env", () => {
+    expect(resolvePermissionMode({ sandbox: true, engine: "acp" })).toEqual({
       permissionMode: "autonomous",
-      sandbox: false,
+      sandbox: true,
     });
   });
 });

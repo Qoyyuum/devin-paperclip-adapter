@@ -92,7 +92,7 @@ export function getConfigSchema(): AdapterConfigSchema {
         label: "Sandbox exec tool",
         type: "toggle",
         default: false,
-        hint: "Pass --sandbox so exec-tool processes run sandboxed (macOS seatbelt / Linux bwrap). Forces the 'autonomous' permission mode. cli engine only; the acp engine cannot sandbox exec.",
+        hint: "Sandbox exec-tool processes (macOS seatbelt / Linux bwrap). Forces the 'autonomous' permission mode. Applied via --sandbox on the cli engine and DEVIN_SANDBOX on the acp engine.",
       },
       {
         key: "instructionsFilePath",

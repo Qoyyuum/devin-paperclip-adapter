@@ -179,26 +179,25 @@ function firstNonEmptyLine(text: string): string {
 }
 
 /**
- * Resolve the effective --permission-mode and --sandbox flags for a run.
+ * Resolve the effective permission mode and sandbox request for a run.
  * Heartbeats are always non-interactive, so the default must approve tool
  * calls without asking: "dangerous" normally, "autonomous" when sandboxed —
  * the Devin CLI forces autonomous under --sandbox and ignores any other
  * mode, so an explicit permissionMode loses to the sandbox flag here too.
  * An unrecognized non-empty value fails closed to "smart" rather than
- * silently approving every tool call. The acp engine cannot sandbox exec
- * calls, so sandboxing only applies to the cli engine.
+ * silently approving every tool call. The cli engine passes --sandbox; the
+ * acp engine has no such flag, so execute applies DEVIN_SANDBOX to its env —
+ * equivalent per the flag's env binding, and fail-closed on hosts that
+ * cannot sandbox.
  * Exported for tests and the environment checks.
  */
-export function resolvePermissionMode(
-  config: Record<string, unknown>,
-  engine = "cli",
-): {
+export function resolvePermissionMode(config: Record<string, unknown>): {
   permissionMode: string;
   sandbox: boolean;
 } {
   const sandboxConfigured = asBoolean(config.sandbox, false);
   const configured = asString(config.permissionMode, "").trim().toLowerCase();
-  const sandboxed = engine !== "acp" && (sandboxConfigured || configured === "autonomous");
+  const sandboxed = sandboxConfigured || configured === "autonomous";
   const permissionMode = sandboxed
     ? "autonomous"
     : configured === ""
@@ -290,20 +289,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const engine = asString(config.engine, "cli").trim().toLowerCase() || "cli";
   const model = asString(config.model, DEFAULT_MODEL).trim() || DEFAULT_MODEL;
   const configuredPermissionMode = asString(config.permissionMode, "").trim().toLowerCase();
-  const { permissionMode, sandbox } = resolvePermissionMode(config, engine);
+  const { permissionMode, sandbox } = resolvePermissionMode(config);
   const acpMode = asString(config.acpMode, "").trim();
   const timeoutSec = asNumber(config.timeoutSec, 0);
   const graceSec = asNumber(config.graceSec, 20);
   const envConfig = parseObject(config.env);
   const extraArgs = asStringArray(config.extraArgs);
 
-  if (engine === "acp" && (asBoolean(config.sandbox, false) || configuredPermissionMode === "autonomous")) {
-    await emitStatus(
-      onLog,
-      "config-override",
-      "The acp engine cannot sandbox exec calls; the agent runs unsandboxed.",
-    );
-  } else if (configuredPermissionMode && configuredPermissionMode !== permissionMode) {
+  if (configuredPermissionMode && configuredPermissionMode !== permissionMode) {
     await emitStatus(
       onLog,
       "config-override",
@@ -369,6 +362,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     executionTargetIsRemote: false,
     executionCwd: cwd,
   });
+  // The cli engine also passes --sandbox; the env var is what the acp engine
+  // relies on, since `devin acp` has no --sandbox flag.
+  if (sandbox) env.DEVIN_SANDBOX = "true";
   if (!hasExplicitApiKey && authToken) {
     env.PAPERCLIP_API_KEY = authToken;
   }

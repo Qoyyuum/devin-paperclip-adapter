@@ -82,9 +82,10 @@ Core fields:
   act. "dangerous" auto-approves every tool call including arbitrary shell
   commands — use it only on trusted hosts. "autonomous" does the same with
   exec sandboxed and requires --sandbox.
-- sandbox (boolean, optional): pass --sandbox to sandbox exec-tool processes
-  (macOS seatbelt / Linux bwrap; default false). Forces the "autonomous"
-  permission mode. cli engine only; the acp engine cannot sandbox exec.
+- sandbox (boolean, optional): sandbox exec-tool processes (macOS seatbelt /
+  Linux bwrap; default false). Forces the "autonomous" permission mode.
+  Passed as --sandbox on the cli engine; on the acp engine, which has no
+  such flag, it is applied via DEVIN_SANDBOX in the Devin process env.
 - instructionsFilePath (string, optional): agent instructions file prepended
   to the run prompt.
 - promptTemplate (string, optional): heartbeat prompt template.
