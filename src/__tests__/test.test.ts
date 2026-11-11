@@ -32,8 +32,12 @@ const baseCtx = (config: Record<string, unknown>) => ({
   config,
 });
 
+// fakeDevinCli produces a POSIX shell script; Windows cannot execFile it
+// (batch files can't be spawned without shell: true either), so the two
+// checks that need a runnable devin binary are POSIX-only. They still run
+// on the ubuntu CI job and POSIX dev machines.
 describe("testEnvironment", () => {
-  it("passes when the skills home is missing because the first run creates it", async () => {
+  it.skipIf(process.platform === "win32")("passes when the skills home is missing because the first run creates it", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "devin-adapter-test-"));
     const command = fakeDevinCli(dir);
     // A HOME that does not exist guarantees ~/.agents is absent.
@@ -51,7 +55,7 @@ describe("testEnvironment", () => {
     expect(result.status).toBe("pass");
   });
 
-  it("passes when a configured cwd does not exist yet", async () => {
+  it.skipIf(process.platform === "win32")("passes when a configured cwd does not exist yet", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "devin-adapter-test-"));
     const command = fakeDevinCli(dir);
 
