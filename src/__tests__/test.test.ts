@@ -65,6 +65,43 @@ describe("testEnvironment", () => {
     expect(result.status).toBe("pass");
   });
 
+  it("warns when permissionMode can require unanswerable confirmations", async () => {
+    const result = await testEnvironment(
+      baseCtx({ permissionMode: "smart", command: nonexistentPath("devin") }),
+    );
+
+    const check = result.checks.find((c) => c.code === "devin_permission_mode_headless");
+    expect(check?.level).toBe("warn");
+  });
+
+  it("reports the resolved headless-capable mode by default", async () => {
+    const result = await testEnvironment(baseCtx({ command: nonexistentPath("devin") }));
+
+    const check = result.checks.find((c) => c.code === "devin_permission_mode_ok");
+    expect(check?.level).toBe("info");
+    expect(check?.message).toContain('"dangerous"');
+  });
+
+  it("resolves to autonomous when sandbox is enabled", async () => {
+    const result = await testEnvironment(
+      baseCtx({ sandbox: true, permissionMode: "smart", command: nonexistentPath("devin") }),
+    );
+
+    const check = result.checks.find((c) => c.code === "devin_permission_mode_ok");
+    expect(check?.level).toBe("info");
+    expect(check?.message).toContain('"autonomous"');
+    expect(check?.detail).toContain('"smart"');
+  });
+
+  it("reports env-based sandbox for the acp engine", async () => {
+    const result = await testEnvironment(
+      baseCtx({ engine: "acp", sandbox: true, command: nonexistentPath("devin") }),
+    );
+
+    const check = result.checks.find((c) => c.code === "devin_sandbox_acp_env");
+    expect(check?.level).toBe("info");
+  });
+
   it("still fails when the devin command is not resolvable", async () => {
     const result = await testEnvironment(
       baseCtx({ command: nonexistentPath("devin") }),

@@ -2,10 +2,52 @@ import { describe, expect, it } from "vitest";
 import {
   isDevinUnknownSessionError,
   pickDevinSessionId,
+  resolvePermissionMode,
   type DevinSessionInfo,
 } from "../server/execute.js";
 
 const s = (id: string, t: number): DevinSessionInfo => ({ id, lastActivityAt: t });
+
+describe("resolvePermissionMode", () => {
+  it("defaults to dangerous so headless runs can act", () => {
+    expect(resolvePermissionMode({})).toEqual({ permissionMode: "dangerous", sandbox: false });
+  });
+
+  it("defaults to autonomous when sandbox is enabled", () => {
+    expect(resolvePermissionMode({ sandbox: true })).toEqual({ permissionMode: "autonomous", sandbox: true });
+  });
+
+  it("keeps an explicit valid mode", () => {
+    expect(resolvePermissionMode({ permissionMode: "smart" })).toEqual({ permissionMode: "smart", sandbox: false });
+    expect(resolvePermissionMode({ permissionMode: "Dangerous" })).toEqual({ permissionMode: "dangerous", sandbox: false });
+  });
+
+  it("lets autonomous imply the sandbox flag the CLI requires", () => {
+    expect(resolvePermissionMode({ permissionMode: "autonomous" })).toEqual({ permissionMode: "autonomous", sandbox: true });
+  });
+
+  it("lets sandbox override an explicit mode, as the Devin CLI does", () => {
+    expect(resolvePermissionMode({ sandbox: true, permissionMode: "smart" })).toEqual({
+      permissionMode: "autonomous",
+      sandbox: true,
+    });
+  });
+
+  it("fails closed to smart for unknown values", () => {
+    expect(resolvePermissionMode({ permissionMode: "bogus" })).toEqual({ permissionMode: "smart", sandbox: false });
+    expect(resolvePermissionMode({ sandbox: true, permissionMode: "bogus" })).toEqual({
+      permissionMode: "autonomous",
+      sandbox: true,
+    });
+  });
+
+  it("resolves the same for every engine; acp gets the sandbox via env", () => {
+    expect(resolvePermissionMode({ sandbox: true, engine: "acp" })).toEqual({
+      permissionMode: "autonomous",
+      sandbox: true,
+    });
+  });
+});
 
 describe("pickDevinSessionId", () => {
   it("prefers a session that appeared during the run", () => {

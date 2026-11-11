@@ -11,7 +11,7 @@ account can see in `devin models list`.
 Each Paperclip heartbeat runs one Devin turn:
 
 ```
-heartbeat -> devin -p --prompt-file <tmp> --model <m> --permission-mode <m> [-r <sessionId>]
+heartbeat -> devin -p --prompt-file <tmp> --model <m> --permission-mode <m> [--sandbox] [-r <sessionId>]
 ```
 
 - The Devin CLI runs non-interactively (`-p`) in the agent's working directory.
@@ -100,8 +100,8 @@ minimal viable config is just `model`; everything else has defaults.
 | `model` | `swe-2-high` | Any id from `devin models list` |
 | `engine` | `cli` | `cli` = `devin -p` one-shot per heartbeat; `acp` = `devin acp` structured session |
 | `acpMode` | derived | Devin ACP session mode id (`ask`, `plan`, `smart`, `accept-edits`, `bypass`). Defaults to a mapping from `permissionMode`; acp engine only |
-| `permissionMode` | `smart` | `auto` / `accept-edits` / `smart` / `dangerous` |
-| `sandbox` | `false` | Pass `--sandbox` (bwrap/seatbelt exec sandbox) |
+| `permissionMode` | `dangerous` (`autonomous` when `sandbox` is on) | `auto` / `accept-edits` / `smart` / `dangerous` / `autonomous` |
+| `sandbox` | `false` | bwrap/seatbelt exec sandbox; forces the `autonomous` permission mode. `--sandbox` on the cli engine, `DEVIN_SANDBOX` env on the acp engine |
 | `instructionsFilePath` | — | File prepended to the run prompt |
 | `promptTemplate` | built-in | `{{agentId}}`, `{{runId}}`, `{{context.*}}` vars |
 | `timeoutSec` | `0` | Hard turn timeout (0 = unlimited) |
@@ -109,8 +109,17 @@ minimal viable config is just `model`; everything else has defaults.
 | `extraArgs` | `[]` | Extra CLI args appended to the invocation |
 | `env` | `{}` | Extra env vars for the Devin process |
 
-`dangerous` auto-approves every tool call including arbitrary shell commands —
-use it only on trusted, isolated hosts.
+Every run is non-interactive (`-p`), so Devin auto-rejects any tool call that
+requires confirmation — there is no one at the terminal to approve it. Modes
+that can require confirmation (`auto`, `accept-edits`, `smart`) therefore
+leave the agent able to produce text but unable to act, which is why
+`dangerous` is the default. `dangerous` auto-approves every tool call
+including arbitrary shell commands — use it only on trusted, isolated hosts.
+`autonomous` carries the same approve-everything posture with exec sandboxed
+at the OS level; it requires sandboxing, and requesting a sandbox forces it.
+The `acp` engine applies the same isolation via `DEVIN_SANDBOX` in the Devin
+process env (`devin acp` has no `--sandbox` flag); Devin refuses to start
+rather than run unsandboxed when the host can't provide it.
 
 ## Behavior notes
 

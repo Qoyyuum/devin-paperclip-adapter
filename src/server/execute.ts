@@ -39,8 +39,8 @@ import { executeAcp } from "./acp.js";
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_MODEL = "swe-2-high";
-const DEFAULT_PERMISSION_MODE = "smart";
-const PERMISSION_MODES = new Set(["auto", "accept-edits", "smart", "dangerous"]);
+const DEFAULT_PERMISSION_MODE = "dangerous";
+const PERMISSION_MODES = new Set(["auto", "accept-edits", "smart", "dangerous", "autonomous"]);
 
 // ---------------------------------------------------------------------------
 // devin.* stdout events — the only stdout this adapter emits is JSON lines so
@@ -178,9 +178,34 @@ function firstNonEmptyLine(text: string): string {
   );
 }
 
-function normalizePermissionMode(raw: string): string {
-  const value = raw.trim().toLowerCase();
-  return PERMISSION_MODES.has(value) ? value : DEFAULT_PERMISSION_MODE;
+/**
+ * Resolve the effective permission mode and sandbox request for a run.
+ * Heartbeats are always non-interactive, so the default must approve tool
+ * calls without asking: "dangerous" normally, "autonomous" when sandboxed —
+ * the Devin CLI forces autonomous under --sandbox and ignores any other
+ * mode, so an explicit permissionMode loses to the sandbox flag here too.
+ * An unrecognized non-empty value fails closed to "smart" rather than
+ * silently approving every tool call. The cli engine passes --sandbox; the
+ * acp engine has no such flag, so execute applies DEVIN_SANDBOX to its env —
+ * equivalent per the flag's env binding, and fail-closed on hosts that
+ * cannot sandbox.
+ * Exported for tests and the environment checks.
+ */
+export function resolvePermissionMode(config: Record<string, unknown>): {
+  permissionMode: string;
+  sandbox: boolean;
+} {
+  const sandboxConfigured = asBoolean(config.sandbox, false);
+  const configured = asString(config.permissionMode, "").trim().toLowerCase();
+  const sandboxed = sandboxConfigured || configured === "autonomous";
+  const permissionMode = sandboxed
+    ? "autonomous"
+    : configured === ""
+      ? DEFAULT_PERMISSION_MODE
+      : PERMISSION_MODES.has(configured)
+        ? configured
+        : "smart";
+  return { permissionMode, sandbox: sandboxed };
 }
 
 function renderPaperclipEnvNote(env: Record<string, string>): string {
@@ -263,13 +288,23 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const command = asString(config.command, "devin").trim() || "devin";
   const engine = asString(config.engine, "cli").trim().toLowerCase() || "cli";
   const model = asString(config.model, DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-  const permissionMode = normalizePermissionMode(asString(config.permissionMode, DEFAULT_PERMISSION_MODE));
+  const configuredPermissionMode = asString(config.permissionMode, "").trim().toLowerCase();
+  const { permissionMode, sandbox } = resolvePermissionMode(config);
   const acpMode = asString(config.acpMode, "").trim();
-  const sandbox = asBoolean(config.sandbox, false);
   const timeoutSec = asNumber(config.timeoutSec, 0);
   const graceSec = asNumber(config.graceSec, 20);
   const envConfig = parseObject(config.env);
   const extraArgs = asStringArray(config.extraArgs);
+
+  if (configuredPermissionMode && configuredPermissionMode !== permissionMode) {
+    await emitStatus(
+      onLog,
+      "config-override",
+      PERMISSION_MODES.has(configuredPermissionMode)
+        ? `The --sandbox flag forces Devin's "autonomous" permission mode; ignoring configured permissionMode "${configuredPermissionMode}".`
+        : `Unknown permissionMode "${configuredPermissionMode}"; using "${permissionMode}".`,
+    );
+  }
 
   const workspaceContext = parseObject(context.paperclipWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
@@ -327,6 +362,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     executionTargetIsRemote: false,
     executionCwd: cwd,
   });
+  // The cli engine also passes --sandbox; the env var is what the acp engine
+  // relies on, since `devin acp` has no --sandbox flag.
+  if (sandbox) env.DEVIN_SANDBOX = "true";
   if (!hasExplicitApiKey && authToken) {
     env.PAPERCLIP_API_KEY = authToken;
   }
