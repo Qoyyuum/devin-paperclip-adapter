@@ -33,11 +33,22 @@ describe("resolvePermissionMode", () => {
     });
   });
 
-  it("falls back for unknown values", () => {
-    expect(resolvePermissionMode({ permissionMode: "bogus" })).toEqual({ permissionMode: "dangerous", sandbox: false });
+  it("fails closed to smart for unknown values", () => {
+    expect(resolvePermissionMode({ permissionMode: "bogus" })).toEqual({ permissionMode: "smart", sandbox: false });
     expect(resolvePermissionMode({ sandbox: true, permissionMode: "bogus" })).toEqual({
       permissionMode: "autonomous",
       sandbox: true,
+    });
+  });
+
+  it("ignores sandbox for the acp engine, which cannot sandbox exec", () => {
+    expect(resolvePermissionMode({ sandbox: true }, "acp")).toEqual({
+      permissionMode: "dangerous",
+      sandbox: false,
+    });
+    expect(resolvePermissionMode({ permissionMode: "autonomous" }, "acp")).toEqual({
+      permissionMode: "autonomous",
+      sandbox: false,
     });
   });
 });

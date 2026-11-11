@@ -7,7 +7,7 @@ import type {
   AdapterEnvironmentTestContext,
   AdapterEnvironmentTestResult,
 } from "@paperclipai/adapter-utils";
-import { asString, parseObject } from "@paperclipai/adapter-utils/server-utils";
+import { asBoolean, asString, parseObject } from "@paperclipai/adapter-utils/server-utils";
 import { resolveDevinSkillsHome, DEVIN_SKILLS_HOME_LABEL } from "./skills.js";
 import { probeDevinAcp } from "./acp.js";
 import { resolvePermissionMode } from "./execute.js";
@@ -163,7 +163,7 @@ export async function testEnvironment(
   // auto-rejects every tool call needing one, and the ACP path rejects the
   // requests that reach it. Modes below "dangerous" therefore leave the
   // agent able to talk but unable to act.
-  const { permissionMode } = resolvePermissionMode(config);
+  const { permissionMode } = resolvePermissionMode(config, engine);
   const configuredPermissionMode = asString(config.permissionMode, "").trim().toLowerCase();
   if (permissionMode === "dangerous" || permissionMode === "autonomous") {
     checks.push({
@@ -181,7 +181,23 @@ export async function testEnvironment(
       code: "devin_permission_mode_headless",
       level: "warn",
       message: `Permission mode "${permissionMode}" can require interactive confirmation, which non-interactive runs auto-reject — the agent may be unable to act.`,
+      ...(configuredPermissionMode && configuredPermissionMode !== permissionMode
+        ? {
+            detail: `Configured permissionMode "${configuredPermissionMode}" is not recognized; treating it as "${permissionMode}".`,
+          }
+        : {}),
       hint: 'Set permissionMode to "dangerous" (or enable sandbox for "autonomous") so the agent can act without a human at the terminal.',
+    });
+  }
+
+  // The acp engine has no --sandbox flag; asking for one silently gets
+  // approve-everything without the OS isolation the flag implies.
+  if (engine === "acp" && (asBoolean(config.sandbox, false) || configuredPermissionMode === "autonomous")) {
+    checks.push({
+      code: "devin_sandbox_acp_unsupported",
+      level: "warn",
+      message: "The acp engine cannot sandbox exec calls; runs proceed unsandboxed.",
+      hint: "Use the cli engine for --sandbox isolation.",
     });
   }
 

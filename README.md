@@ -100,8 +100,8 @@ minimal viable config is just `model`; everything else has defaults.
 | `model` | `swe-2-high` | Any id from `devin models list` |
 | `engine` | `cli` | `cli` = `devin -p` one-shot per heartbeat; `acp` = `devin acp` structured session |
 | `acpMode` | derived | Devin ACP session mode id (`ask`, `plan`, `smart`, `accept-edits`, `bypass`). Defaults to a mapping from `permissionMode`; acp engine only |
-| `permissionMode` | `dangerous` (`autonomous` when `sandbox` is on) | `auto` / `accept-edits` / `smart` / `dangerous` / `autonomous` |
-| `sandbox` | `false` | Pass `--sandbox` (bwrap/seatbelt exec sandbox); forces the `autonomous` permission mode |
+| `permissionMode` | `dangerous` (`autonomous` when `sandbox` is on, cli engine) | `auto` / `accept-edits` / `smart` / `dangerous` / `autonomous` |
+| `sandbox` | `false` | Pass `--sandbox` (bwrap/seatbelt exec sandbox); forces the `autonomous` permission mode. cli engine only — the acp engine cannot sandbox exec |
 | `instructionsFilePath` | — | File prepended to the run prompt |
 | `promptTemplate` | built-in | `{{agentId}}`, `{{runId}}`, `{{context.*}}` vars |
 | `timeoutSec` | `0` | Hard turn timeout (0 = unlimited) |

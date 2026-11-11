@@ -528,6 +528,11 @@ export async function probeDevinAcp(
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
+  // An unspawnable command (e.g. devin not installed) emits 'error'
+  // asynchronously; without a listener it crashes the host process.
+  const spawnFailure = new Promise<never>((_, reject) => {
+    child.once("error", (err) => reject(err instanceof Error ? err : new Error(String(err))));
+  });
   try {
     const stream = ndJsonStream(
       Writable.toWeb(child.stdin!) as WritableStream<Uint8Array>,
@@ -554,6 +559,7 @@ export async function probeDevinAcp(
       sleep(timeoutMs).then(() => {
         throw new Error(`devin acp did not answer initialize within ${timeoutMs}ms`);
       }),
+      spawnFailure,
     ]);
     // A real hello probe: session/new is the cheapest request that exercises
     // credentials. authMethods merely lists supported methods — a logged-in

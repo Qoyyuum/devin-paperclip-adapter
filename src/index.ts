@@ -84,7 +84,7 @@ Core fields:
   exec sandboxed and requires --sandbox.
 - sandbox (boolean, optional): pass --sandbox to sandbox exec-tool processes
   (macOS seatbelt / Linux bwrap; default false). Forces the "autonomous"
-  permission mode.
+  permission mode. cli engine only; the acp engine cannot sandbox exec.
 - instructionsFilePath (string, optional): agent instructions file prepended
   to the run prompt.
 - promptTemplate (string, optional): heartbeat prompt template.
