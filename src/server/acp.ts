@@ -16,6 +16,7 @@ import type {
   ToolCallContent,
 } from "@agentclientprotocol/sdk";
 import type { AdapterExecutionResult, AdapterInvocationMeta } from "@paperclipai/adapter-utils";
+import { conversationContinuationFields } from "./recovery.js";
 
 // ---------------------------------------------------------------------------
 // devin.* stdout events emitted by the ACP path. The ui-parser renders these
@@ -501,6 +502,7 @@ export async function executeAcp(options: AcpExecuteOptions): Promise<AdapterExe
       ...(usage.used !== undefined ? { usage } : {}),
       ...(stderr ? { stderr } : {}),
       ...(failure ? { error: failure } : {}),
+      ...conversationContinuationFields(status),
     },
   };
 }

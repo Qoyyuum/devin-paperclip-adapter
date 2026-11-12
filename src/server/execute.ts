@@ -35,6 +35,7 @@ import {
 } from "@paperclipai/adapter-utils/server-utils";
 import { syncDevinSkills } from "./skills.js";
 import { executeAcp } from "./acp.js";
+import { conversationContinuationFields } from "./recovery.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -253,7 +254,7 @@ function buildArgs(input: {
   return args;
 }
 
-interface AttemptResult {
+export interface AttemptResult {
   proc: RunProcessResult;
   sessionId: string | null;
   resumed: boolean;
@@ -619,7 +620,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 }
 
-function toResult(
+export function toResult(
   attempt: AttemptResult,
   model: string,
   cwd: string,
@@ -628,6 +629,7 @@ function toResult(
   const { proc, sessionId, resumed } = attempt;
   const isError = proc.exitCode !== 0 || proc.timedOut;
   const responseText = proc.stdout;
+  const status = proc.timedOut ? "timed_out" : isError ? "error" : "finished";
   const errorMessage = proc.timedOut
     ? "Devin run timed out."
     : isError
@@ -649,12 +651,13 @@ function toResult(
     summary: isError ? null : firstNonEmptyLine(responseText),
     clearSession: opts.clearSession,
     resultJson: {
-      status: proc.timedOut ? "timed_out" : isError ? "error" : "finished",
+      status,
       devinSessionId: sessionId,
       resumed,
       model,
       ...(proc.timedOut ? { timedOut: true } : {}),
       ...(trimNullable(proc.stderr) ? { stderr: trimNullable(proc.stderr) } : {}),
+      ...conversationContinuationFields(status),
     },
   };
 }
