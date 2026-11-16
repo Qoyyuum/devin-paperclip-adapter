@@ -28,6 +28,15 @@ heartbeat -> devin -p --prompt-file <tmp> --model <m> --permission-mode <m> [--s
 - An `acp` engine is also available: it drives `devin acp` over the Agent
   Client Protocol for structured thinking/tool-call/usage events in the
   transcript and session resume via `session/load`.
+- On the acp engine, a retryable provider error mid-turn (Devin's
+  `cognition.ai/retryable` / `errorKind: unavailable` JSON-RPC error) is
+  retried in place up to 3 times (15s/30s/60s backoff) by sending a
+  continuation prompt on the same session, per the error's own
+  "send a message to continue retrying" instruction. If the `devin acp`
+  process died, the adapter respawns it, reloads the session via
+  `session/load`, and retries there. Exhausted retries report
+  `retryableProviderError: true` and `providerErrorKind` in `resultJson` so
+  recovery layers can distinguish retry-worthy failures.
 
 ## Prerequisites
 
@@ -276,4 +285,5 @@ npm dependencies are declared in the `imports` map of `jsr.json`.
 | `devin_auth_missing` | run `devin auth login` as the same OS user that runs Paperclip |
 | Run fails with unknown model | model id isn't available to the account — check `devin models list` |
 | Session doesn't resume | `cwd` changed between runs, or the stored session expired — the adapter retries once with a fresh session and reports `clearSession` |
+| `provider-retry` events then a failed run (acp engine) | Devin's model backend was unavailable — the adapter already retried in-session up to 3 times; `retryableProviderError: true` in `resultJson` marks it retry-worthy |
 | Agent stuck in `verifying` | rerun the environment test; any `error`-level check blocks hiring |
