@@ -4,6 +4,7 @@ import {
   buildResolvePayload,
   findReconciliationHolds,
   holdSourceRunId,
+  isLoopbackApiBase,
   isReconciliationHold,
   RecoverUsageError,
   selectHold,
@@ -171,6 +172,14 @@ describe("cli parseArgs", () => {
       .toThrow(/--note requires a value/);
   });
 
+  it("keeps dash-led evidence text and supports --flag=value", () => {
+    expect(parseArgs(["resolve", issueId, "--outcome-evidence", "- Verified the Devin process stopped."]))
+      .toMatchObject({ outcomeEvidence: "- Verified the Devin process stopped." });
+    expect(parseArgs(["resolve", issueId, "--note=-x", "--outcome-evidence=a=b"]))
+      .toMatchObject({ note: "-x", outcomeEvidence: "a=b" });
+    expect(() => parseArgs(["list", issueId, "--bogus=1"])).toThrow(/Unknown option/);
+  });
+
   it("rejects unknown options", () => {
     expect(() => parseArgs(["list", issueId, "--bogus"])).toThrow(/Unknown option/);
   });
@@ -178,5 +187,16 @@ describe("cli parseArgs", () => {
   it("accepts --api-key-env to keep the key out of argv", () => {
     expect(parseArgs(["list", issueId, "--api-key-env", "MY_BOARD_KEY"]))
       .toMatchObject({ apiKeyEnv: "MY_BOARD_KEY" });
+  });
+});
+
+describe("isLoopbackApiBase", () => {
+  it("recognizes loopback hosts only", () => {
+    expect(isLoopbackApiBase("http://localhost:3100")).toBe(true);
+    expect(isLoopbackApiBase("http://127.0.0.1:3100/")).toBe(true);
+    expect(isLoopbackApiBase("http://[::1]:3100")).toBe(true);
+    expect(isLoopbackApiBase("http://paperclip.internal:3100")).toBe(false);
+    expect(isLoopbackApiBase("https://127.0.0.1.example.com")).toBe(false);
+    expect(() => isLoopbackApiBase("not a url")).toThrow(RecoverUsageError);
   });
 });

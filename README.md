@@ -174,6 +174,10 @@ rather than run unsandboxed when the host can't provide it.
       --outcome-evidence "Server restarted; devin processes were gone."
   ```
 
+  The key can be omitted against a loopback API base in Paperclip's default
+  `local_trusted` mode; remote API bases require a key and `https://`. Use
+  `--outcome-evidence=<text>` for text that starts with a dash.
+
   `resolve` posts `outcome: "restored"`, `sourceIssueStatus: "todo"`, and an
   `executionReconciliation` decision (run id taken from the hold's evidence)
   to `POST /api/issues/{issueId}/recovery-actions/resolve`. Add `--dry-run`

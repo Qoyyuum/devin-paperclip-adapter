@@ -221,10 +221,25 @@ export function buildResolvePayload(input: {
   };
 }
 
-/** Minimal authenticated JSON call against the Paperclip API. */
+/**
+ * True when the API base points at this host. Paperclip's default
+ * `local_trusted` deployment treats loopback callers as the board, so no key
+ * is needed there.
+ */
+export function isLoopbackApiBase(baseUrl: string): boolean {
+  let host: string;
+  try {
+    host = new URL(baseUrl).hostname;
+  } catch {
+    throw new RecoverUsageError(`Invalid API base URL: ${baseUrl}`);
+  }
+  return host === "localhost" || host === "[::1]" || /^127(\.\d{1,3}){3}$/.test(host);
+}
+
+/** Minimal JSON call against the Paperclip API; sends a bearer key when given. */
 export async function apiJson<T>(
   baseUrl: string,
-  apiKey: string,
+  apiKey: string | null,
   method: "GET" | "POST",
   path: string,
   body?: unknown,
@@ -232,7 +247,7 @@ export async function apiJson<T>(
   const res = await fetch(`${baseUrl.replace(/\/+$/, "")}${path}`, {
     method,
     headers: {
-      authorization: `Bearer ${apiKey}`,
+      ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
       accept: "application/json",
     },

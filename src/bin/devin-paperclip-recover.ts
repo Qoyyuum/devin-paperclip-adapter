@@ -10,7 +10,9 @@
  *
  * Auth: `Authorization: Bearer <board api key>` via `PAPERCLIP_API_KEY`
  * (or `--api-key-env <name>`; `--api-key` works but stays visible in
- * process listings). API base via `--api-base` or `PAPERCLIP_API_URL`
+ * process listings). The key is optional for a loopback API base, which
+ * Paperclip's `local_trusted` mode already treats as the board, and is only
+ * sent to other hosts over https. API base via `--api-base` or `PAPERCLIP_API_URL`
  * (default http://localhost:3100) — the same env vars the `paperclipai`
  * CLI uses.
  *
@@ -23,6 +25,7 @@ import {
   buildResolvePayload,
   findReconciliationHolds,
   holdFailureCode,
+  isLoopbackApiBase,
   holdSourceRunId,
   RECONCILIATION_ACTION_OUTCOMES,
   RecoverUsageError,
@@ -44,7 +47,8 @@ Options:
   --note <text>                Resolution note recorded on the action (resolve)
   --dry-run                    Print the resolve payload without posting it (resolve)
   --api-base <url>             Paperclip API base (env PAPERCLIP_API_URL; default http://localhost:3100)
-  --api-key-env <name>         Env var holding the board API key (default PAPERCLIP_API_KEY)
+  --api-key-env <name>         Env var holding the board API key (default PAPERCLIP_API_KEY;
+                               optional for a loopback API base, https required for remote)
   --api-key <key>              Board API key directly; visible in process listings, prefer --api-key-env
   --json                       Machine-readable output
   -h, --help                   Show this help
@@ -95,10 +99,15 @@ export function parseArgs(argv: string[]): CliArgs {
     if (arg === "-h" || arg === "--help") args.help = true;
     else if (arg === "--json") args.json = true;
     else if (arg === "--dry-run") args.dryRun = true;
-    else if (arg in valueFlags) {
+    else if (arg.includes("=") && arg.slice(0, arg.indexOf("=")) in valueFlags) {
+      const flag = arg.slice(0, arg.indexOf("="));
+      args[valueFlags[flag]!] = arg.slice(flag.length + 1) as never;
+    } else if (arg in valueFlags) {
       const value = argv[i + 1];
-      if (value === undefined || value.startsWith("-")) {
-        throw new RecoverUsageError(`${arg} requires a value`);
+      // A lone flag-like token (`--dry-run`, `-h`) means the value was omitted;
+      // dash-led prose such as "- verified the process stopped" is kept.
+      if (value === undefined || /^-\S*$/.test(value)) {
+        throw new RecoverUsageError(`${arg} requires a value (use ${arg}=<value> for dash-led text)`);
       }
       i++;
       args[valueFlags[arg]!] = value as never;
@@ -115,17 +124,23 @@ export function parseArgs(argv: string[]): CliArgs {
   return args;
 }
 
-function resolveConnection(args: CliArgs): { apiBase: string; apiKey: string } {
+function resolveConnection(args: CliArgs): { apiBase: string; apiKey: string | null } {
   const apiBase =
     args.apiBase ?? process.env.PAPERCLIP_API_URL?.trim() ?? "http://localhost:3100";
   const apiKey =
-    args.apiKey ?? process.env[args.apiKeyEnv ?? "PAPERCLIP_API_KEY"]?.trim();
-  if (!apiKey) {
+    args.apiKey ?? process.env[args.apiKeyEnv ?? "PAPERCLIP_API_KEY"]?.trim() ?? null;
+  const loopback = isLoopbackApiBase(apiBase);
+  if (!apiKey && !loopback) {
     throw new RecoverUsageError(
-      `A board API key is required. Set ${args.apiKeyEnv ?? "PAPERCLIP_API_KEY"} or pass --api-key-env/--api-key.`,
+      `A board API key is required for ${apiBase}. Set ${args.apiKeyEnv ?? "PAPERCLIP_API_KEY"} or pass --api-key-env/--api-key.`,
     );
   }
-  return { apiBase, apiKey };
+  if (apiKey && !loopback && new URL(apiBase).protocol !== "https:") {
+    throw new RecoverUsageError(
+      `Refusing to send the board API key to ${apiBase} over plain HTTP; use an https:// API base.`,
+    );
+  }
+  return { apiBase, apiKey: apiKey || null };
 }
 
 function print(value: unknown, json: boolean): void {
