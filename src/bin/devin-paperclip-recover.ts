@@ -22,6 +22,7 @@ import {
   apiJson,
   buildResolvePayload,
   findReconciliationHolds,
+  holdFailureCode,
   holdSourceRunId,
   RECONCILIATION_ACTION_OUTCOMES,
   RecoverUsageError,
@@ -158,6 +159,7 @@ async function listCommand(args: CliArgs): Promise<void> {
     actionId: hold.id,
     status: hold.status,
     runId: holdSourceRunId(hold) ?? "(none)",
+    failureCode: holdFailureCode(hold) ?? "-",
     replay: hold.evidence?.automaticRecovery?.replay ?? "-",
     nextAction: hold.nextAction ?? "",
   }));
@@ -182,7 +184,11 @@ async function resolveCommand(args: CliArgs): Promise<void> {
     "GET",
     `/api/issues/${args.issueId}/recovery-actions`,
   );
-  const hold = selectHold(findReconciliationHolds(data), args.actionId ?? undefined);
+  const hold = selectHold(
+    findReconciliationHolds(data),
+    args.actionId ?? undefined,
+    data.active,
+  );
   const payload = buildResolvePayload({
     hold,
     actionOutcome: args.actionOutcome as ReconciliationActionOutcome,
@@ -206,7 +212,7 @@ async function resolveCommand(args: CliArgs): Promise<void> {
   }
   print(
     `Reconciled run ${payload.executionReconciliation.runId} on action ${payload.actionId}.\n` +
-      "The issue is restored to todo; the assignee wakes on a fresh Devin session (devin -r).",
+      "The issue is restored to todo; the assignee wakes on a fresh Devin session.",
     false,
   );
 }

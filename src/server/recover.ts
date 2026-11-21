@@ -14,8 +14,8 @@
  * `GET /api/issues/:id/recovery-actions` picks the hold and
  * `POST /api/issues/:id/recovery-actions/resolve` restores the issue to
  * `todo` with an `executionReconciliation` decision. `deliverReconciledExecutions`
- * then wakes the assignee with a fresh session and Devin resumes via
- * `devin -r <sessionId>`.
+ * then wakes the assignee with `forceFreshSession: true`, so the next turn
+ * starts a new Devin session instead of resuming the lost one.
  *
  * The upstream fix — letting external adapters declare conversation-turn
  * semantics — belongs in `@paperclipai/server`; this stays useful until it
@@ -27,6 +27,9 @@
 /** Recovery-action `cause` the watchdog records for a lost legacy run. */
 export const RECONCILIATION_HOLD_CAUSE = "legacy_execution_requires_reconciliation";
 
+/** Run `errorCode` this tool exists for: the server died mid-run. */
+export const PROCESS_LOST_ERROR_CODE = "process_lost";
+
 /** Subset of `issue_recovery_actions` rows returned by the read model. */
 export interface IssueRecoveryAction {
   id: string;
@@ -35,6 +38,7 @@ export interface IssueRecoveryAction {
   evidence?: {
     runId?: string;
     sourceRunId?: string;
+    originalFailureCode?: string;
     automaticRecovery?: { replay?: string };
     executionReconciliation?: unknown;
   } | null;
@@ -108,17 +112,37 @@ export function holdSourceRunId(action: IssueRecoveryAction): string | null {
   return typeof runId === "string" && runId ? runId : null;
 }
 
+/** Failure code recorded on the hold, or `null` when the server did not record one. */
+export function holdFailureCode(action: IssueRecoveryAction): string | null {
+  const code = action.evidence?.originalFailureCode;
+  return typeof code === "string" && code ? code : null;
+}
+
 export class RecoverUsageError extends Error {}
 
 /**
  * Pick the hold to resolve. `actionId`, when given, must name a matching
  * hold; otherwise exactly one hold must exist — ambiguity is an operator
- * decision, never a guess.
+ * decision, never a guess — and it must not be recorded for a failure other
+ * than `process_lost`. A settled (`replay: "blocked"`) hold can only be
+ * restored while no other recovery action is active on the issue.
  */
 export function selectHold(
   holds: IssueRecoveryAction[],
   actionId?: string,
+  active?: IssueRecoveryAction | null,
 ): IssueRecoveryAction {
+  const hold = pickHold(holds, actionId);
+  if (active && active.id !== hold.id && !HOLD_STATUSES.has(hold.status)) {
+    throw new RecoverUsageError(
+      `Recovery action ${active.id} (${active.cause ?? "unknown cause"}) is active on this issue; ` +
+        `Paperclip will not restore settled hold ${hold.id} until it is resolved.`,
+    );
+  }
+  return hold;
+}
+
+function pickHold(holds: IssueRecoveryAction[], actionId?: string): IssueRecoveryAction {
   if (actionId) {
     const match = holds.find((hold) => hold.id === actionId);
     if (!match) {
@@ -139,7 +163,15 @@ export function selectHold(
       `${holds.length} reconciliation holds found; re-run with --action-id:\n${ids}`,
     );
   }
-  return holds[0]!;
+  const hold = holds[0]!;
+  const failureCode = holdFailureCode(hold);
+  if (failureCode && failureCode !== PROCESS_LOST_ERROR_CODE) {
+    throw new RecoverUsageError(
+      `Hold ${hold.id} was recorded for ${failureCode}, not ${PROCESS_LOST_ERROR_CODE}; ` +
+        "inspect the run, then re-run with --action-id to reconcile it anyway.",
+    );
+  }
+  return hold;
 }
 
 /**

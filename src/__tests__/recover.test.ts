@@ -81,6 +81,27 @@ describe("selectHold", () => {
   it("reports when nothing holds the issue", () => {
     expect(() => selectHold([])).toThrow(/No unresolved/);
   });
+
+  it("requires --action-id for a hold recorded for another failure", () => {
+    const timedOut = hold({
+      evidence: { runId: RUN_ID, originalFailureCode: "timeout" },
+    });
+    expect(() => selectHold([timedOut])).toThrow(/recorded for timeout/);
+    expect(selectHold([timedOut], ACTION_ID)).toMatchObject({ id: ACTION_ID });
+    const lost = hold({
+      evidence: { runId: RUN_ID, originalFailureCode: "process_lost" },
+    });
+    expect(selectHold([lost])).toMatchObject({ id: ACTION_ID });
+  });
+
+  it("refuses a settled hold while another recovery action is active", () => {
+    const settled = hold({ status: "resolved" });
+    const active = hold({ id: other.id, cause: "configuration_incomplete" });
+    expect(() => selectHold([settled], undefined, active)).toThrow(/is active on this issue/);
+    expect(() => selectHold([settled], ACTION_ID, active)).toThrow(/is active on this issue/);
+    expect(selectHold([settled], undefined, null)).toMatchObject({ id: ACTION_ID });
+    expect(selectHold([hold()], undefined, hold())).toMatchObject({ id: ACTION_ID });
+  });
 });
 
 describe("buildResolvePayload", () => {
