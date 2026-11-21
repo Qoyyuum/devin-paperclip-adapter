@@ -153,4 +153,9 @@ describe("cli parseArgs", () => {
   it("rejects unknown options", () => {
     expect(() => parseArgs(["list", issueId, "--bogus"])).toThrow(/Unknown option/);
   });
+
+  it("accepts --api-key-env to keep the key out of argv", () => {
+    expect(parseArgs(["list", issueId, "--api-key-env", "MY_BOARD_KEY"]))
+      .toMatchObject({ apiKeyEnv: "MY_BOARD_KEY" });
+  });
 });

@@ -8,8 +8,9 @@
  *   resolve Record the execution reconciliation and restore the issue to
  *           `todo`; the assignee wakes on a fresh Devin session.
  *
- * Auth: `Authorization: Bearer <board api key>` via `--api-key` or
- * `PAPERCLIP_API_KEY`. API base via `--api-base` or `PAPERCLIP_API_URL`
+ * Auth: `Authorization: Bearer <board api key>` via `PAPERCLIP_API_KEY`
+ * (or `--api-key-env <name>`; `--api-key` works but stays visible in
+ * process listings). API base via `--api-base` or `PAPERCLIP_API_URL`
  * (default http://localhost:3100) — the same env vars the `paperclipai`
  * CLI uses.
  *
@@ -42,7 +43,8 @@ Options:
   --note <text>                Resolution note recorded on the action (resolve)
   --dry-run                    Print the resolve payload without posting it (resolve)
   --api-base <url>             Paperclip API base (env PAPERCLIP_API_URL; default http://localhost:3100)
-  --api-key <key>              Board API key (env PAPERCLIP_API_KEY)
+  --api-key-env <name>         Env var holding the board API key (default PAPERCLIP_API_KEY)
+  --api-key <key>              Board API key directly; visible in process listings, prefer --api-key-env
   --json                       Machine-readable output
   -h, --help                   Show this help
 `;
@@ -57,6 +59,7 @@ interface CliArgs {
   dryRun: boolean;
   apiBase: string | null;
   apiKey: string | null;
+  apiKeyEnv: string | null;
   json: boolean;
   help: boolean;
 }
@@ -72,6 +75,7 @@ export function parseArgs(argv: string[]): CliArgs {
     dryRun: false,
     apiBase: null,
     apiKey: null,
+    apiKeyEnv: null,
     json: false,
     help: false,
   };
@@ -83,6 +87,7 @@ export function parseArgs(argv: string[]): CliArgs {
     "--note": "note",
     "--api-base": "apiBase",
     "--api-key": "apiKey",
+    "--api-key-env": "apiKeyEnv",
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -112,10 +117,11 @@ export function parseArgs(argv: string[]): CliArgs {
 function resolveConnection(args: CliArgs): { apiBase: string; apiKey: string } {
   const apiBase =
     args.apiBase ?? process.env.PAPERCLIP_API_URL?.trim() ?? "http://localhost:3100";
-  const apiKey = args.apiKey ?? process.env.PAPERCLIP_API_KEY?.trim();
+  const apiKey =
+    args.apiKey ?? process.env[args.apiKeyEnv ?? "PAPERCLIP_API_KEY"]?.trim();
   if (!apiKey) {
     throw new RecoverUsageError(
-      "A board API key is required. Pass --api-key or set PAPERCLIP_API_KEY.",
+      `A board API key is required. Set ${args.apiKeyEnv ?? "PAPERCLIP_API_KEY"} or pass --api-key-env/--api-key.`,
     );
   }
   return { apiBase, apiKey };
