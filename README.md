@@ -177,8 +177,9 @@ rather than run unsandboxed when the host can't provide it.
   `resolve` posts `outcome: "restored"`, `sourceIssueStatus: "todo"`, and an
   `executionReconciliation` decision (run id taken from the hold's evidence)
   to `POST /api/issues/{issueId}/recovery-actions/resolve`. Add `--dry-run`
-  to print the payload first. The assignee is then woken and Devin resumes
-  via `-r <sessionId>`. From a source checkout, run
+  to print the payload first. The assignee is then woken on a fresh Devin
+  session (Paperclip forces a new session for reconciled runs, so the lost
+  session is not resumed). From a source checkout, run
   `node dist/bin/devin-paperclip-recover.js` instead.
 
 ## Package layout
