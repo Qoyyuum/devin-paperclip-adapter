@@ -1,0 +1,120 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildResolvePayload,
+  findReconciliationHolds,
+  holdSourceRunId,
+  isReconciliationHold,
+  RecoverUsageError,
+  selectHold,
+  type IssueRecoveryAction,
+} from "../server/recover.js";
+
+const ACTION_ID = "eb5fe4ad-0000-4000-8000-000000000001";
+const RUN_ID = "671fc35c-995b-4987-a0af-796cd04e7647";
+
+const hold = (overrides: Partial<IssueRecoveryAction> = {}): IssueRecoveryAction => ({
+  id: ACTION_ID,
+  cause: "legacy_execution_requires_reconciliation",
+  status: "active",
+  evidence: { runId: RUN_ID, automaticRecovery: { replay: "blocked" } },
+  createdAt: "2026-11-11T10:06:09Z",
+  ...overrides,
+});
+
+describe("isReconciliationHold", () => {
+  it("matches an active reconciliation hold", () => {
+    expect(isReconciliationHold(hold())).toBe(true);
+    expect(isReconciliationHold(hold({ status: "escalated" }))).toBe(true);
+  });
+
+  it("keeps resolved rows whose replay is still blocked", () => {
+    expect(isReconciliationHold(hold({ status: "resolved" }))).toBe(true);
+  });
+
+  it("ignores other causes and fully settled rows", () => {
+    expect(isReconciliationHold(hold({ cause: "workspace_restore_recovery" }))).toBe(false);
+    expect(
+      isReconciliationHold(
+        hold({ status: "resolved", evidence: { runId: RUN_ID, automaticRecovery: {} } }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("findReconciliationHolds", () => {
+  it("filters to reconciliation holds, newest first", () => {
+    const older = hold({ id: "eb5fe4ad-0000-4000-8000-000000000002", createdAt: "2026-11-10T09:00:00Z" });
+    const unrelated = hold({ cause: "workspace_restore_recovery", createdAt: "2026-11-12T09:00:00Z" });
+    const holds = findReconciliationHolds({ actions: [older, unrelated, hold()] });
+    expect(holds.map((h) => h.id)).toEqual([ACTION_ID, older.id]);
+  });
+});
+
+describe("holdSourceRunId", () => {
+  it("prefers evidence.runId and falls back to sourceRunId", () => {
+    expect(holdSourceRunId(hold())).toBe(RUN_ID);
+    expect(
+      holdSourceRunId(hold({ evidence: { sourceRunId: RUN_ID } })),
+    ).toBe(RUN_ID);
+    expect(holdSourceRunId(hold({ evidence: {} }))).toBeNull();
+    expect(holdSourceRunId(hold({ evidence: null }))).toBeNull();
+  });
+});
+
+describe("selectHold", () => {
+  const other = hold({ id: "eb5fe4ad-0000-4000-8000-000000000003" });
+
+  it("returns the single open hold without an id", () => {
+    expect(selectHold([hold()])).toMatchObject({ id: ACTION_ID });
+  });
+
+  it("selects by --action-id and rejects unknown ids", () => {
+    expect(selectHold([hold(), other], other.id)).toMatchObject({ id: other.id });
+    expect(() => selectHold([hold()], other.id)).toThrow(RecoverUsageError);
+  });
+
+  it("refuses to guess between multiple holds", () => {
+    expect(() => selectHold([hold(), other])).toThrow(/--action-id/);
+  });
+
+  it("reports when nothing holds the issue", () => {
+    expect(() => selectHold([])).toThrow(/No unresolved/);
+  });
+});
+
+describe("buildResolvePayload", () => {
+  const base = {
+    hold: hold(),
+    actionOutcome: "not_performed" as const,
+    outcomeEvidence: "Server restarted at 10:05; both devin child processes were gone.",
+  };
+
+  it("builds the restored+todo reconciliation decision", () => {
+    expect(buildResolvePayload(base)).toEqual({
+      actionId: ACTION_ID,
+      outcome: "restored",
+      sourceIssueStatus: "todo",
+      executionReconciliation: {
+        runId: RUN_ID,
+        providerStopped: true,
+        actionOutcome: "not_performed",
+        outcomeEvidence: base.outcomeEvidence,
+      },
+    });
+  });
+
+  it("rejects invalid outcomes and thin evidence", () => {
+    expect(() =>
+      buildResolvePayload({ ...base, actionOutcome: "guessed" as never }),
+    ).toThrow(/--action-outcome/);
+    expect(() =>
+      buildResolvePayload({ ...base, outcomeEvidence: "died" }),
+    ).toThrow(/outcome-evidence/);
+  });
+
+  it("refuses holds with no recorded source run", () => {
+    expect(() =>
+      buildResolvePayload({ ...base, hold: hold({ evidence: {} }) }),
+    ).toThrow(/source run id/);
+  });
+});

@@ -1,0 +1,222 @@
+#!/usr/bin/env node
+/**
+ * `devin-paperclip-recover` — release a `devin_local` issue stuck behind a
+ * `legacy_execution_requires_reconciliation` hold after a Paperclip server
+ * restart lost the run (`process_lost`).
+ *
+ *   list    Show unresolved reconciliation holds on an issue.
+ *   resolve Record the execution reconciliation and restore the issue to
+ *           `todo`; the assignee wakes on a fresh Devin session.
+ *
+ * Auth: `Authorization: Bearer <board api key>` via `--api-key` or
+ * `PAPERCLIP_API_KEY`. API base via `--api-base` or `PAPERCLIP_API_URL`
+ * (default http://localhost:3100) — the same env vars the `paperclipai`
+ * CLI uses.
+ *
+ * @module
+ */
+import {
+  apiJson,
+  buildResolvePayload,
+  findReconciliationHolds,
+  holdSourceRunId,
+  RECONCILIATION_ACTION_OUTCOMES,
+  RecoverUsageError,
+  selectHold,
+  type IssueRecoveryActionsResponse,
+  type ReconciliationActionOutcome,
+} from "../server/recover.js";
+
+const USAGE = `devin-paperclip-recover — reconcile devin_local runs lost to a server restart
+
+Usage:
+  devin-paperclip-recover list <issueId>
+  devin-paperclip-recover resolve <issueId> --action-outcome <outcome> --outcome-evidence <text>
+
+Options:
+  --action-outcome <outcome>   completed | not_performed | mixed (resolve, required)
+  --outcome-evidence <text>    What was observed for the lost run, >= 20 chars (resolve, required)
+  --action-id <uuid>           Resolve this hold when several are open (resolve)
+  --note <text>                Resolution note recorded on the action (resolve)
+  --dry-run                    Print the resolve payload without posting it (resolve)
+  --api-base <url>             Paperclip API base (env PAPERCLIP_API_URL; default http://localhost:3100)
+  --api-key <key>              Board API key (env PAPERCLIP_API_KEY)
+  --json                       Machine-readable output
+  -h, --help                   Show this help
+`;
+
+interface CliArgs {
+  command: string | null;
+  issueId: string | null;
+  actionOutcome: string | null;
+  outcomeEvidence: string | null;
+  actionId: string | null;
+  note: string | null;
+  dryRun: boolean;
+  apiBase: string | null;
+  apiKey: string | null;
+  json: boolean;
+  help: boolean;
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = {
+    command: null,
+    issueId: null,
+    actionOutcome: null,
+    outcomeEvidence: null,
+    actionId: null,
+    note: null,
+    dryRun: false,
+    apiBase: null,
+    apiKey: null,
+    json: false,
+    help: false,
+  };
+  const positional: string[] = [];
+  const valueFlags: Record<string, keyof CliArgs> = {
+    "--action-outcome": "actionOutcome",
+    "--outcome-evidence": "outcomeEvidence",
+    "--action-id": "actionId",
+    "--note": "note",
+    "--api-base": "apiBase",
+    "--api-key": "apiKey",
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "-h" || arg === "--help") args.help = true;
+    else if (arg === "--json") args.json = true;
+    else if (arg === "--dry-run") args.dryRun = true;
+    else if (arg in valueFlags) {
+      const value = argv[++i];
+      if (value === undefined) throw new RecoverUsageError(`${arg} requires a value`);
+      args[valueFlags[arg]!] = value as never;
+    } else if (arg.startsWith("--")) {
+      throw new RecoverUsageError(`Unknown option: ${arg}`);
+    } else {
+      positional.push(arg);
+    }
+  }
+  [args.command, args.issueId] = [positional[0] ?? null, positional[1] ?? null];
+  if (positional.length > 2) {
+    throw new RecoverUsageError(`Unexpected argument: ${positional[2]}`);
+  }
+  return args;
+}
+
+function resolveConnection(args: CliArgs): { apiBase: string; apiKey: string } {
+  const apiBase =
+    args.apiBase ?? process.env.PAPERCLIP_API_URL?.trim() ?? "http://localhost:3100";
+  const apiKey = args.apiKey ?? process.env.PAPERCLIP_API_KEY?.trim();
+  if (!apiKey) {
+    throw new RecoverUsageError(
+      "A board API key is required. Pass --api-key or set PAPERCLIP_API_KEY.",
+    );
+  }
+  return { apiBase, apiKey };
+}
+
+function print(value: unknown, json: boolean): void {
+  if (json) {
+    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  } else if (typeof value === "string") {
+    process.stdout.write(`${value}\n`);
+  } else {
+    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  }
+}
+
+async function listCommand(args: CliArgs): Promise<void> {
+  const { apiBase, apiKey } = resolveConnection(args);
+  const data = await apiJson<IssueRecoveryActionsResponse>(
+    apiBase,
+    apiKey,
+    "GET",
+    `/api/issues/${args.issueId}/recovery-actions`,
+  );
+  const holds = findReconciliationHolds(data);
+  if (args.json) {
+    print(holds, true);
+    return;
+  }
+  if (holds.length === 0) {
+    print("No unresolved execution-reconciliation holds on this issue.", false);
+    return;
+  }
+  const rows = holds.map((hold) => ({
+    actionId: hold.id,
+    status: hold.status,
+    runId: holdSourceRunId(hold) ?? "(none)",
+    replay: hold.evidence?.automaticRecovery?.replay ?? "-",
+    nextAction: hold.nextAction ?? "",
+  }));
+  console.table(rows);
+}
+
+async function resolveCommand(args: CliArgs): Promise<void> {
+  if (!args.actionOutcome) {
+    throw new RecoverUsageError(
+      `resolve requires --action-outcome (${RECONCILIATION_ACTION_OUTCOMES.join(" | ")})`,
+    );
+  }
+  if (!args.outcomeEvidence) {
+    throw new RecoverUsageError(
+      "resolve requires --outcome-evidence describing what was observed for the lost run.",
+    );
+  }
+  const { apiBase, apiKey } = resolveConnection(args);
+  const data = await apiJson<IssueRecoveryActionsResponse>(
+    apiBase,
+    apiKey,
+    "GET",
+    `/api/issues/${args.issueId}/recovery-actions`,
+  );
+  const hold = selectHold(findReconciliationHolds(data), args.actionId ?? undefined);
+  const payload = buildResolvePayload({
+    hold,
+    actionOutcome: args.actionOutcome as ReconciliationActionOutcome,
+    outcomeEvidence: args.outcomeEvidence,
+    resolutionNote: args.note ?? undefined,
+  });
+  if (args.dryRun) {
+    print(payload, true);
+    return;
+  }
+  const result = await apiJson<unknown>(
+    apiBase,
+    apiKey,
+    "POST",
+    `/api/issues/${args.issueId}/recovery-actions/resolve`,
+    payload,
+  );
+  if (args.json) {
+    print(result, true);
+    return;
+  }
+  print(
+    `Reconciled run ${payload.executionReconciliation.runId} on action ${payload.actionId}.\n` +
+      "The issue is restored to todo; the assignee wakes on a fresh Devin session (devin -r).",
+    false,
+  );
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help || !args.command) {
+    print(USAGE, false);
+    process.exitCode = args.help ? 0 : 1;
+    return;
+  }
+  if (!args.issueId) {
+    throw new RecoverUsageError("An issue id is required.");
+  }
+  if (args.command === "list") await listCommand(args);
+  else if (args.command === "resolve") await resolveCommand(args);
+  else throw new RecoverUsageError(`Unknown command: ${args.command}`);
+}
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`devin-paperclip-recover: ${message}\n`);
+  process.exitCode = error instanceof RecoverUsageError ? 2 : 1;
+});

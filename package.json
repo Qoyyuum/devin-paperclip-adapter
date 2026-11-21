@@ -18,6 +18,9 @@
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "devin-paperclip-recover": "./dist/bin/devin-paperclip-recover.js"
+  },
   "paperclip": {
     "adapterUiParser": "1.0.0"
   },
