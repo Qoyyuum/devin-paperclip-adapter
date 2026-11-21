@@ -15,6 +15,8 @@
  *
  * @module
  */
+import { realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import {
   apiJson,
   buildResolvePayload,
@@ -59,7 +61,7 @@ interface CliArgs {
   help: boolean;
 }
 
-function parseArgs(argv: string[]): CliArgs {
+export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     command: null,
     issueId: null,
@@ -88,8 +90,11 @@ function parseArgs(argv: string[]): CliArgs {
     else if (arg === "--json") args.json = true;
     else if (arg === "--dry-run") args.dryRun = true;
     else if (arg in valueFlags) {
-      const value = argv[++i];
-      if (value === undefined) throw new RecoverUsageError(`${arg} requires a value`);
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("-")) {
+        throw new RecoverUsageError(`${arg} requires a value`);
+      }
+      i++;
       args[valueFlags[arg]!] = value as never;
     } else if (arg.startsWith("--")) {
       throw new RecoverUsageError(`Unknown option: ${arg}`);
@@ -215,8 +220,13 @@ async function main(): Promise<void> {
   else throw new RecoverUsageError(`Unknown command: ${args.command}`);
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`devin-paperclip-recover: ${message}\n`);
-  process.exitCode = error instanceof RecoverUsageError ? 2 : 1;
-});
+const invokedAsScript =
+  !!process.argv[1] &&
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+if (invokedAsScript) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`devin-paperclip-recover: ${message}\n`);
+    process.exitCode = error instanceof RecoverUsageError ? 2 : 1;
+  });
+}

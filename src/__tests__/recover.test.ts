@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseArgs } from "../bin/devin-paperclip-recover.js";
 import {
   buildResolvePayload,
   findReconciliationHolds,
@@ -116,5 +117,40 @@ describe("buildResolvePayload", () => {
     expect(() =>
       buildResolvePayload({ ...base, hold: hold({ evidence: {} }) }),
     ).toThrow(/source run id/);
+  });
+});
+
+describe("cli parseArgs", () => {
+  const issueId = "11111111-2222-3333-4444-555555555555";
+
+  it("parses a resolve invocation", () => {
+    const args = parseArgs([
+      "resolve", issueId,
+      "--action-outcome", "not_performed",
+      "--outcome-evidence", "Server restarted; processes gone.",
+      "--note", "triaged on the board",
+      "--dry-run",
+    ]);
+    expect(args).toMatchObject({
+      command: "resolve",
+      issueId,
+      actionOutcome: "not_performed",
+      outcomeEvidence: "Server restarted; processes gone.",
+      note: "triaged on the board",
+      dryRun: true,
+    });
+  });
+
+  it("does not consume a following flag as a flag's value", () => {
+    expect(() => parseArgs(["resolve", issueId, "--note", "--dry-run"]))
+      .toThrow(/--note requires a value/);
+    expect(() => parseArgs(["resolve", issueId, "--action-outcome", "--dry-run"]))
+      .toThrow(/--action-outcome requires a value/);
+    expect(() => parseArgs(["resolve", issueId, "--note"]))
+      .toThrow(/--note requires a value/);
+  });
+
+  it("rejects unknown options", () => {
+    expect(() => parseArgs(["list", issueId, "--bogus"])).toThrow(/Unknown option/);
   });
 });
