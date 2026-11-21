@@ -104,9 +104,9 @@ export function parseArgs(argv: string[]): CliArgs {
       args[valueFlags[flag]!] = arg.slice(flag.length + 1) as never;
     } else if (arg in valueFlags) {
       const value = argv[i + 1];
-      // A lone flag-like token (`--dry-run`, `-h`) means the value was omitted;
-      // dash-led prose such as "- verified the process stopped" is kept.
-      if (value === undefined || /^-\S*$/.test(value)) {
+      // A flag-like token (`--dry-run`, `--note=<text>`) means the value was
+      // omitted; dash-led prose such as "- verified the process stopped" is kept.
+      if (value === undefined || /^-\S*$/.test(value) || /^--[A-Za-z][\w-]*=/.test(value)) {
         throw new RecoverUsageError(`${arg} requires a value (use ${arg}=<value> for dash-led text)`);
       }
       i++;

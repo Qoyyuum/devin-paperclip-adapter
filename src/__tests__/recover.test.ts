@@ -168,6 +168,8 @@ describe("cli parseArgs", () => {
       .toThrow(/--note requires a value/);
     expect(() => parseArgs(["resolve", issueId, "--action-outcome", "--dry-run"]))
       .toThrow(/--action-outcome requires a value/);
+    expect(() => parseArgs(["resolve", issueId, "--outcome-evidence", "--note=Reviewed during incident handoff"]))
+      .toThrow(/--outcome-evidence requires a value/);
     expect(() => parseArgs(["resolve", issueId, "--note"]))
       .toThrow(/--note requires a value/);
   });
