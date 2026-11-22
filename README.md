@@ -163,24 +163,28 @@ rather than run unsandboxed when the host can't provide it.
 - **Lost runs (`process_lost`).** If the Paperclip server dies mid-run, the
   adapter never returns, so it cannot report that policy. Paperclip
   (<= 2026.1106.0) only infers it for built-in adapter types and blocks the
-  issue until a board operator reconciles it:
+  issue until a board operator reconciles it. The bundled
+  `devin-paperclip-recover` CLI performs the reconciliation:
 
-  ```http
-  POST /api/issues/{issueId}/recovery-actions/resolve
-  {
-    "actionId": "<issueRecoveryActions.id>",
-    "outcome": "restored",
-    "sourceIssueStatus": "todo",
-    "executionReconciliation": {
-      "runId": "<failedRunId>",
-      "providerStopped": true,
-      "actionOutcome": "not_performed | completed | mixed",
-      "outcomeEvidence": "<what was observed>"
-    }
-  }
+  ```console
+  $ export PAPERCLIP_API_URL=http://localhost:3100 PAPERCLIP_API_KEY=<board-api-key>
+  $ devin-paperclip-recover list <issueId>            # show the open hold + run id
+  $ devin-paperclip-recover resolve <issueId> \
+      --action-outcome not_performed \
+      --outcome-evidence "Server restarted; devin processes were gone."
   ```
 
-  The assignee is then woken and Devin resumes via `-r <sessionId>`.
+  The key can be omitted against a loopback API base in Paperclip's default
+  `local_trusted` mode; remote API bases require a key and `https://`. Use
+  `--outcome-evidence=<text>` for text that starts with a dash.
+
+  `resolve` posts `outcome: "restored"`, `sourceIssueStatus: "todo"`, and an
+  `executionReconciliation` decision (run id taken from the hold's evidence)
+  to `POST /api/issues/{issueId}/recovery-actions/resolve`. Add `--dry-run`
+  to print the payload first. The assignee is then woken on a fresh Devin
+  session (Paperclip forces a new session for reconciled runs, so the lost
+  session is not resumed). From a source checkout, run
+  `node dist/bin/devin-paperclip-recover.js` instead.
 
 ## Package layout
 
